@@ -1,48 +1,66 @@
 // lib/prisma.ts
 import { PrismaClient } from "@prisma/client";
 
-// Only import Neon adapter if in production (Vercel/Neon serverless)
+declare global {
+  // attach to globalThis in dev to prevent creating multiple clients during hot reloads
+  // eslint-disable-next-line no-var
+  var prisma: PrismaClient | undefined;
+}
+
 let prisma: PrismaClient;
 
 if (process.env.NODE_ENV === "production") {
-  // Dynamically require to avoid bundling in local dev
-  const { Pool, neonConfig } = require("@neondatabase/serverless");
-  const { PrismaNeon } = require("@prisma/adapter-neon");
-  const ws = require("ws");
+  try {
+    // Use require here to avoid top-level await and keep this server-only.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { Pool, neonConfig } = require("@neondatabase/serverless");
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { PrismaNeon } = require("@prisma/adapter-neon");
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const wsImport = require("ws");
+    const ws = wsImport?.default ?? wsImport;
 
-  // Ensure DATABASE_URL exists
-  if (!process.env.DATABASE_URL) {
-    throw new Error("❌ DATABASE_URL is missing. Check your .env file.");
-  }
+    if (!process.env.DATABASE_URL) {
+      throw new Error("❌ DATABASE_URL is missing. Check your .env file.");
+    }
 
-  // Enable WebSocket for Neon
-  neonConfig.webSocketConstructor = ws;
+    // Enable WebSocket for Neon
+    neonConfig.webSocketConstructor = ws;
 
-  // Create Neon pool + adapter
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-  const adapter = new PrismaNeon(pool);
+    // Create Neon pool + adapter
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+    const adapter = new PrismaNeon(pool);
 
-  prisma = new PrismaClient({ adapter }).$extends({
-    result: {
-      product: {
-        price: {
-          compute(product) {
-            return product.price.toString();
+    prisma = new PrismaClient({ adapter }).$extends({
+      result: {
+        product: {
+          price: {
+            compute(product: any) {
+              return product.price?.toString();
+            },
           },
-        },
-        rating: {
-          compute(product) {
-            return product.rating.toString();
+          rating: {
+            compute(product: any) {
+              return product.rating?.toString();
+            },
           },
         },
       },
-    },
-  });
+    });
+  } catch (err) {
+    // If something goes wrong with the Neon adapter, fall back to a plain PrismaClient.
+    // This prevents the whole app from crashing in production if adapter packages fail.
+    // Log the error so you can investigate.
+    // eslint-disable-next-line no-console
+    console.error(
+      "Error creating Prisma client with Neon adapter, falling back:",
+      err
+    );
+    prisma = new PrismaClient();
+  }
 } else {
-  // Local development: use normal PrismaClient with singleton pattern
-  const globalForPrisma = globalThis as unknown as {
-    prisma?: PrismaClient;
-  };
+  // Development: create / reuse a global Prisma client to avoid exhausting connections
+  const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
   prisma =
     globalForPrisma.prisma ??

@@ -53,3 +53,21 @@ export function formatError(error: unknown): string {
 
   return "An unknown error occurred";
 }
+
+/**
+ * Round number-like value to 2 decimal places.
+ * Accepts number, numeric string, or Prisma.Decimal.
+ */
+export function round2(value: unknown): number {
+  if (value == null) return 0; // handle null/undefined safely
+
+  // Convert Prisma.Decimal or other objects to string first
+  const num = Number(value.toString());
+
+  if (isNaN(num)) {
+    console.warn("⚠️ round2 received a non-numeric value:", value);
+    return 0;
+  }
+
+  return Math.round((num + Number.EPSILON) * 100) / 100;
+}

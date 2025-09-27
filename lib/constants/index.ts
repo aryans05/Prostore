@@ -21,3 +21,11 @@ export const signUpDefaultValues = {
   password: "",
   confirmPassword: "",
 };
+
+export const shippingAddressDefaultValues = {
+  fullName: "Aryan",
+  streetAddress: "123 Main-st",
+  city: "AnyTown",
+  postalCode: "12345",
+  country: "USA",
+};
