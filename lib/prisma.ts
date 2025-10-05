@@ -1,4 +1,5 @@
 // lib/prisma.ts
+import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 
 /**
@@ -104,30 +105,23 @@ let prisma: ReturnType<typeof createExtendedClient>;
 // ============================================================
 if (process.env.NODE_ENV === "production") {
   try {
-    // Dynamically import Neon dependencies
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { Pool, neonConfig } = require("@neondatabase/serverless");
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { PrismaNeon } = require("@prisma/adapter-neon");
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const wsImport = require("ws");
     const ws = wsImport?.default ?? wsImport;
 
-    // ✅ Ensure database URL exists
     if (!process.env.DATABASE_URL) {
       throw new Error(
         "❌ DATABASE_URL is missing. Please check your .env file."
       );
     }
 
-    // ✅ Enable WebSocket for Neon
+    // ✅ Use WebSocket in Neon serverless
     neonConfig.webSocketConstructor = ws;
 
-    // ✅ Create Neon pool + adapter
     const pool = new Pool({ connectionString: process.env.DATABASE_URL });
     const adapter = new PrismaNeon(pool);
 
-    // ✅ Create extended Prisma client with Neon adapter
     prisma = createExtendedClient({ adapter });
 
     console.log("✅ Connected to Neon database successfully (production)");
