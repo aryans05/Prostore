@@ -1,11 +1,14 @@
 // lib/prisma.ts
 import { PrismaClient } from "@prisma/client";
 
-let prisma: ReturnType<typeof createExtendedClient>;
+function createExtendedClient(
+  options?: ConstructorParameters<typeof PrismaClient>[0]
+) {
+  const client = new PrismaClient(options);
 
-function createExtendedClient(client: PrismaClient) {
   return client.$extends({
     result: {
+      // ✅ Automatically convert Decimal → string
       product: {
         price: {
           compute(product) {
@@ -18,18 +21,71 @@ function createExtendedClient(client: PrismaClient) {
           },
         },
       },
+      cart: {
+        itemsPrice: {
+          compute(cart) {
+            return cart.itemsPrice?.toString();
+          },
+        },
+        totalPrice: {
+          compute(cart) {
+            return cart.totalPrice?.toString();
+          },
+        },
+        shippingPrice: {
+          compute(cart) {
+            return cart.shippingPrice?.toString();
+          },
+        },
+        taxPrice: {
+          compute(cart) {
+            return cart.taxPrice?.toString();
+          },
+        },
+      },
+      order: {
+        itemsPrice: {
+          compute(order) {
+            return order.itemsPrice?.toString();
+          },
+        },
+        totalPrice: {
+          compute(order) {
+            return order.totalPrice?.toString();
+          },
+        },
+        shippingPrice: {
+          compute(order) {
+            return order.shippingPrice?.toString();
+          },
+        },
+        taxPrice: {
+          compute(order) {
+            return order.taxPrice?.toString();
+          },
+        },
+      },
+      orderItem: {
+        price: {
+          compute(item) {
+            return item.price?.toString();
+          },
+        },
+      },
     },
   });
 }
 
+// ✅ Client variable (shared across environments)
+let prisma: ReturnType<typeof createExtendedClient>;
+
+// ============================================================
+// 🏗️ PRODUCTION (Neon serverless, WebSocket adapter)
+// ============================================================
 if (process.env.NODE_ENV === "production") {
   try {
-    // Dynamically require Neon deps to avoid Next.js build issues
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { Pool, neonConfig } = require("@neondatabase/serverless");
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { PrismaNeon } = require("@prisma/adapter-neon");
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const wsImport = require("ws");
     const ws = wsImport?.default ?? wsImport;
 
@@ -37,29 +93,30 @@ if (process.env.NODE_ENV === "production") {
       throw new Error("❌ DATABASE_URL is missing. Check your .env file.");
     }
 
-    // Enable WebSocket for Neon
     neonConfig.webSocketConstructor = ws;
 
-    // Create Neon pool + adapter
     const pool = new Pool({ connectionString: process.env.DATABASE_URL });
     const adapter = new PrismaNeon(pool);
 
-    const baseClient = new PrismaClient({ adapter });
-    prisma = createExtendedClient(baseClient);
+    prisma = createExtendedClient({ adapter });
   } catch (err) {
     console.error(
-      "⚠️ Failed to init Prisma with Neon adapter. Falling back:",
+      "⚠️ Neon adapter failed. Falling back to standard Prisma:",
       err
     );
-    prisma = createExtendedClient(new PrismaClient());
+    prisma = createExtendedClient();
   }
-} else {
-  // Development: reuse Prisma client on hot reloads
+}
+// ============================================================
+// 🧑‍💻 DEVELOPMENT (reuse Prisma client to avoid hot reload leaks)
+// ============================================================
+else {
   const globalForPrisma = globalThis as unknown as { prisma?: typeof prisma };
 
   if (!globalForPrisma.prisma) {
-    const baseClient = new PrismaClient({ log: ["query", "error", "warn"] });
-    globalForPrisma.prisma = createExtendedClient(baseClient);
+    globalForPrisma.prisma = createExtendedClient({
+      log: ["query", "error", "warn"],
+    });
   }
 
   prisma = globalForPrisma.prisma;

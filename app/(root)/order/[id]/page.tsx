@@ -1,4 +1,4 @@
-import { getOrderById } from "@/lib/actions/order.action"; // ✅ plural
+import { getOrderById } from "@/lib/actions/order.action";
 import { notFound } from "next/navigation";
 import OrderDetailsTable from "./order-details-table";
 import { ShippingAddress } from "@/types";
@@ -17,8 +17,9 @@ const OrderDetailsPage = async ({ params }: { params: { id: string } }) => {
     <OrderDetailsTable
       order={{
         ...order,
-        shippingAddress: order.shippingAddress as ShippingAddress, // ✅ temporary cast
+        shippingAddress: order.shippingAddress as ShippingAddress,
       }}
+      paypalClientId={process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || "sb"}
     />
   );
 };

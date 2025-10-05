@@ -115,3 +115,10 @@ export const insertOrderItemSchema = z.object({
   price: currencySchema,
   qty: z.number().int().min(1, "Qty must be at least 1"), // ✅ Order uses qty
 });
+
+export const paymentResultSchema = z.object({
+  id: z.string(),
+  status: z.string(),
+  email_address: z.string(),
+  pricePaid: z.string(),
+});

@@ -1,30 +1,42 @@
-// components/shared/product/product-list.tsx
 import ProductCard from "./product-card";
-import { Product } from "@/types"; // ✅ use the shared type
+import type { BasicProduct } from "@/lib/actions/product.actions";
 
-const ProductList = ({
-  data = [], // ✅ default value is an empty array
-  title = "Products",
-}: {
-  data?: Product[];
+interface ProductListProps {
+  products?: BasicProduct[];
   title?: string;
-}) => {
-  if (!Array.isArray(data)) return null;
+}
+
+/**
+ * Renders a grid of product cards.
+ * Used on the homepage and product listing sections.
+ */
+const ProductList = ({
+  products = [],
+  title = "Products",
+}: ProductListProps) => {
+  // ✅ Guard clause for invalid data
+  if (!Array.isArray(products)) return null;
 
   return (
     <section className="my-10">
-      <h2 className="h2-bold mb-4">{title}</h2>
+      {/* ✅ Section Title */}
+      {title && (
+        <h2 className="text-2xl font-semibold mb-6 tracking-tight text-gray-800">
+          {title}
+        </h2>
+      )}
 
-      {data.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-          {data.map((item) => (
-            <ProductCard key={item.slug} product={item} />
+      {/* ✅ Product Grid */}
+      {products.length > 0 ? (
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {products.map((product) => (
+            <ProductCard key={product.slug} product={product} />
           ))}
         </div>
       ) : (
-        <div className="text-center py-8 text-muted-foreground">
+        <p className="text-center py-10 text-gray-500 text-sm">
           No products found.
-        </div>
+        </p>
       )}
     </section>
   );

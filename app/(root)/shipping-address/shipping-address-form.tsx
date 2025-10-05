@@ -30,28 +30,33 @@ const ShippingAddressForm = ({ address }: { address: ShippingAddress }) => {
     resolver: zodResolver(shippingAddressSchema),
     defaultValues: {
       ...shippingAddressDefaultValues,
-      ...address, // ✅ merge user address if available
+      ...address, // Merge default and existing address
     },
   });
 
   const onSubmit = (values: z.infer<typeof shippingAddressSchema>) => {
     startTransition(async () => {
-      const res = await updateUserAddress(values);
+      try {
+        const res = await updateUserAddress(values);
 
-      if (res.success) {
-        // ✅ Success toast
-        toast({
-          variant: "default",
-          description: res.message,
-        });
+        if (res?.success) {
+          toast({
+            description: res.message || "Address saved successfully!",
+          });
 
-        // ✅ Redirect to payment page
-        router.push("/payment-method");
-      } else {
-        // ❌ Error toast
+          // Prefetch payment route for faster navigation
+          router.prefetch("/payment-method");
+          router.push("/payment-method");
+        } else {
+          toast({
+            variant: "destructive",
+            description: res?.message || "Failed to save address.",
+          });
+        }
+      } catch (error) {
         toast({
           variant: "destructive",
-          description: res.message,
+          description: "Unexpected error. Please try again.",
         });
       }
     });
@@ -59,9 +64,9 @@ const ShippingAddressForm = ({ address }: { address: ShippingAddress }) => {
 
   return (
     <div className="max-w-md mx-auto space-y-6">
-      <h1 className="h2-bold mt-4">Shipping Address</h1>
+      <h1 className="text-2xl font-bold mt-4">Shipping Address</h1>
       <p className="text-sm text-muted-foreground">
-        Please enter an address to ship to
+        Please enter the address where your order will be shipped.
       </p>
 
       <Form {...form}>

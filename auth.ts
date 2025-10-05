@@ -2,9 +2,12 @@
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
-import prisma from "@/lib/prisma";
 import { compare } from "bcryptjs";
+import prisma from "@/lib/prisma";
 
+/* ============================================================
+   ✅ NextAuth Configuration
+   ============================================================ */
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
 
@@ -16,18 +19,35 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null;
+        // ✅ Validate input safely
+        if (
+          !credentials ||
+          typeof credentials.email !== "string" ||
+          typeof credentials.password !== "string"
+        ) {
+          console.error("Missing or invalid credentials");
+          return null;
+        }
 
         try {
+          // ✅ Safely fetch user by email
           const user = await prisma.user.findUnique({
             where: { email: credentials.email },
           });
 
-          if (!user || !user.password) return null;
+          if (!user || !user.password) {
+            console.warn("User not found or missing password hash");
+            return null;
+          }
 
+          // ✅ Validate password with bcrypt
           const isValid = await compare(credentials.password, user.password);
-          if (!isValid) return null;
+          if (!isValid) {
+            console.warn("Invalid password attempt");
+            return null;
+          }
 
+          // ✅ Return minimal user object for session/token
           return {
             id: user.id,
             name: user.name,
@@ -35,7 +55,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             role: user.role,
           };
         } catch (err) {
-          console.error("Authorize error:", err);
+          console.error("❌ Error during credentials authorization:", err);
           return null;
         }
       },
@@ -49,8 +69,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
   callbacks: {
     /**
-     * jwt callback:
-     * - Add user.id and user.role to the JWT on first login
+     * ✅ JWT Callback:
+     * Adds user.id and user.role to the JWT payload
      */
     async jwt({ token, user }) {
       if (user) {
@@ -61,8 +81,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
 
     /**
-     * session callback:
-     * - Expose token fields (id, role) on session.user
+     * ✅ Session Callback:
+     * Makes token fields accessible in session.user
      */
     async session({ session, token }) {
       if (session.user) {
@@ -72,4 +92,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return session;
     },
   },
+
+  pages: {
+    signIn: "/login", // Optional: redirect to your login page
+  },
+
+  secret: process.env.NEXTAUTH_SECRET,
 });

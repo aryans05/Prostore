@@ -4,41 +4,56 @@ import { ZodError } from "zod";
 import { Prisma } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
 
-/**
- * Utility function to merge class names.
- */
+/* =======================================================
+   🧩 CLASSNAMES UTIL
+   Merge Tailwind classes intelligently
+   ======================================================= */
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-/**
- * Convert a Prisma object (with Decimal, Date, etc.)
- * into a plain JSON-serializable JS object.
- */
+/* =======================================================
+   🧠 CONVERT TO PLAIN OBJECT
+   Converts Prisma models (with Decimal, Date, etc.)
+   into plain JSON-serializable JavaScript objects.
+   ======================================================= */
 export function convertToPlainObject<T>(value: T): T {
   return JSON.parse(
     JSON.stringify(value, (_, val) => {
-      if (val && typeof val === "object" && val.constructor?.name === "Decimal") {
+      // ✅ Handle Prisma.Decimal values safely
+      if (
+        val &&
+        typeof val === "object" &&
+        val.constructor?.name === "Decimal"
+      ) {
         return Number((val as Decimal).toString());
       }
+
+      // ✅ Handle Date objects
       if (val instanceof Date) {
         return val.toISOString();
       }
+
       return val;
     })
   );
 }
 
+/* =======================================================
+   💰 NUMBER & CURRENCY HELPERS
+   ======================================================= */
+
 /**
- * Format number with decimal places.
+ * Format number with fixed 2 decimal places
  */
 export function formatNumberWithDecimal(num: number): string {
+  if (isNaN(num)) return "0.00";
   const [int, decimal] = num.toString().split(".");
   return decimal ? `${int}.${decimal.padEnd(2, "0")}` : `${int}.00`;
 }
 
 /**
- * Format a number into a currency string.
+ * Format a number into a localized currency string.
  */
 export function formatCurrency(
   value: number,
@@ -55,50 +70,59 @@ export function formatCurrency(
 }
 
 /**
- * Format an error object into a human-readable string.
+ * Round a numeric value safely to 2 decimal places.
  */
+export function round2(value: unknown): number {
+  if (value == null) return 0;
+  const num = Number(value);
+  if (isNaN(num)) return 0;
+  return Math.round((num + Number.EPSILON) * 100) / 100;
+}
+
+/* =======================================================
+   ⚠️ ERROR HANDLING UTILITIES
+   ======================================================= */
 export function formatError(error: unknown): string {
   if (error instanceof ZodError) {
     return error.issues[0]?.message || "Validation error";
   }
+
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     if (error.code === "P2002") {
       return "This record already exists (duplicate field)";
     }
     return `Database error: ${error.message}`;
   }
+
   if (error instanceof Error) {
     return error.message;
   }
+
   if (typeof error === "string") {
     return error;
   }
+
   return "An unknown error occurred";
 }
 
-/**
- * Round number-like value to 2 decimal places.
- */
-export function round2(value: unknown): number {
-  if (value == null) return 0;
-  const num = Number(value.toString());
-  if (isNaN(num)) return 0;
-  return Math.round((num + Number.EPSILON) * 100) / 100;
-}
+/* =======================================================
+   🔠 STRING HELPERS
+   ======================================================= */
 
 /**
- * Shorten UUIDs or long IDs.
+ * Shorten long UUIDs or IDs (e.g., show last 6 chars)
  */
 export function formatId(id: string): string {
   if (!id) return "";
-  return `..${id.substring(id.length - 6)}`;
+  return `..${id.slice(-6)}`;
 }
 
-/**
- * Format a date into multiple styles.
- */
+/* =======================================================
+   📅 DATE & TIME FORMATTING
+   ======================================================= */
 export function formatDateTime(dateInput: string | Date) {
   const date = new Date(dateInput);
+
   const dateTimeOptions: Intl.DateTimeFormatOptions = {
     month: "short",
     year: "numeric",
@@ -107,17 +131,20 @@ export function formatDateTime(dateInput: string | Date) {
     minute: "numeric",
     hour12: true,
   };
+
   const dateOptions: Intl.DateTimeFormatOptions = {
     weekday: "short",
     month: "short",
     year: "numeric",
     day: "numeric",
   };
+
   const timeOptions: Intl.DateTimeFormatOptions = {
     hour: "numeric",
     minute: "numeric",
     hour12: true,
   };
+
   return {
     dateTime: date.toLocaleString("en-US", dateTimeOptions),
     dateOnly: date.toLocaleString("en-US", dateOptions),

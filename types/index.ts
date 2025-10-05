@@ -6,38 +6,67 @@ import {
   shippingAddressSchema,
   insertOrderItemSchema,
   insertOrderSchema,
+  paymentResultSchema,
 } from "@/lib/validators";
 
-// ✅ Product type
+/* ============================================================
+   🧩 PRODUCT TYPES
+   ============================================================ */
+
+/**
+ * ✅ Full Product type (used for product detail pages and admin)
+ * Prisma.Decimal fields like `price` & `rating` are converted → number
+ */
 export type Product = z.infer<typeof insertProductSchema> & {
   id: string;
-  rating: number; // ensure numeric
+  price: number; // Prisma.Decimal → number
+  rating: number; // Prisma.Decimal → number
+  numReviews: number;
   createdAt: Date;
+  updatedAt?: Date;
 };
 
-// ✅ Cart type
+/**
+ * ✅ Lightweight product type for homepage listings and cards
+ * Used when fetching with `select: { slug, name, price, images }`
+ */
+export type BasicProduct = {
+  slug: string;
+  name: string;
+  price: number;
+  images: string[];
+};
+
+/* ============================================================
+   🛒 CART TYPES
+   ============================================================ */
+
 export type Cart = z.infer<typeof insertCartSchema> & {
   id: string;
-  createdAt: string | Date; // allow Date or serialized string
+  createdAt: string | Date; // ISO string or Date
 };
 
-// ✅ CartItem type (Prisma uses "quantity")
 export type CartItem = z.infer<typeof cartItemSchema> & {
-  id?: string; // optional DB id for frontend
+  id?: string; // optional DB ID for frontend usage
   cartId?: string;
 };
 
-// ✅ Shipping Address type
+/* ============================================================
+   🚚 SHIPPING TYPES
+   ============================================================ */
+
 export type ShippingAddress = z.infer<typeof shippingAddressSchema>;
 
-// ✅ OrderItem type (Prisma uses "qty")
+/* ============================================================
+   📦 ORDER TYPES
+   ============================================================ */
+
 export type OrderItem = z.infer<typeof insertOrderItemSchema> & {
   id?: string;
   orderId?: string;
   productId?: string;
 };
 
-// ✅ Order type (aligned with Prisma + utils.convertToPlainObject)
 export type Order = z.infer<typeof insertOrderSchema> & {
   id: string;
   createdAt: Date;
@@ -50,12 +79,18 @@ export type Order = z.infer<typeof insertOrderSchema> & {
   items: OrderItem[];
   user: { name: string; email: string } | null;
 
-  // ✅ Serialized JSON field
+  // ✅ JSON shipping field
   shippingAddress: ShippingAddress;
 
-  // ✅ Price fields (Decimal → number after convertToPlainObject)
+  // ✅ Decimal fields converted → number
   itemsPrice: number;
   shippingPrice: number;
   taxPrice: number;
   totalPrice: number;
 };
+
+/* ============================================================
+   💳 PAYMENT TYPES
+   ============================================================ */
+
+export type PaymentResult = z.infer<typeof paymentResultSchema>;

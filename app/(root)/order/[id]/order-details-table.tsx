@@ -1,133 +1,238 @@
 "use client";
 
-import React from "react";
-import Link from "next/link";
-import { Order } from "@/types";
-import { formatCurrency, formatDateTime } from "@/lib/utils";
+import {
+  PayPalButtons,
+  PayPalScriptProvider,
+  usePayPalScriptReducer,
+} from "@paypal/react-paypal-js";
+import {
+  approvePayPalOrder,
+  createPayPalOrder,
+} from "@/lib/actions/order.action";
+import Image from "next/image";
+import { useToast } from "@/hooks/use-toast";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import type { Order, ShippingAddress } from "@/types";
 
-type Props = {
+/* ===========================================================
+   ✅ Props
+   =========================================================== */
+interface OrderDetailsProps {
   order: Order;
-};
+  paypalClientId: string;
+}
 
-export default function OrderDetailsTable({ order }: Props) {
-  const created = formatDateTime(order.createdAt);
-  const paid = order.paidAt ? formatDateTime(order.paidAt) : null;
-  const delivered = order.deliveredAt
-    ? formatDateTime(order.deliveredAt)
-    : null;
+/* ===========================================================
+   ✅ PayPalSection (hook used *inside* provider)
+   =========================================================== */
+function PayPalSection({
+  order,
+  paypalClientId,
+}: {
+  order: Order;
+  paypalClientId: string;
+}) {
+  const { toast } = useToast();
+  const [{ isPending, isRejected }] = usePayPalScriptReducer();
+
+  // Loading state
+  function PrintLoadingState() {
+    if (isPending) return <p className="text-gray-500">Loading PayPal...</p>;
+    if (isRejected)
+      return <p className="text-red-500">Error loading PayPal Buttons</p>;
+    return null;
+  }
+
+  // Create PayPal order
+  const handleCreatePayPalOrder = async () => {
+    const res = await createPayPalOrder(order.id);
+    if (!res.success) {
+      toast({
+        description: res.message,
+        variant: "destructive",
+      });
+      throw new Error(res.message);
+    }
+    return res.data;
+  };
+
+  // Approve PayPal order
+  const handleApprovePayPalOrder = async (data: { orderID: string }) => {
+    const res = await approvePayPalOrder(order.id, data);
+    toast({
+      description: res.message,
+      variant: res.success ? "default" : "destructive",
+    });
+  };
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="bg-white shadow rounded-2xl p-6">
-        <h1 className="text-2xl font-semibold mb-2">Order #{order.id}</h1>
-        <p className="text-gray-500">
-          Placed on <span className="font-medium">{created.dateOnly}</span>
-        </p>
-      </div>
+    <>
+      <PrintLoadingState />
+      <PayPalButtons
+        style={{
+          layout: "vertical",
+          color: "gold",
+          shape: "rect",
+          label: "paypal",
+        }}
+        createOrder={handleCreatePayPalOrder}
+        onApprove={handleApprovePayPalOrder}
+      />
+    </>
+  );
+}
 
-      {/* Shipping + Payment */}
-      <div className="grid md:grid-cols-2 gap-6">
-        <div className="bg-white p-6 shadow rounded-2xl">
-          <h2 className="font-semibold text-lg mb-3">Shipping Address</h2>
-          <div className="text-gray-700 space-y-1">
-            <p>{order.shippingAddress.fullName}</p>
-            <p>{order.shippingAddress.streetAddress}</p>
-            <p>
-              {order.shippingAddress.city}, {order.shippingAddress.postalCode}
-            </p>
-            <p>{order.shippingAddress.country}</p>
-          </div>
-          <div className="mt-4">
-            {order.isDelivered ? (
-              <p className="text-green-600 font-medium">
-                Delivered on {delivered?.dateOnly}
+/* ===========================================================
+   ✅ Main Component
+   =========================================================== */
+const OrderDetailsTable = ({ order, paypalClientId }: OrderDetailsProps) => {
+  const { items, shippingAddress, isPaid, isDelivered } = order;
+
+  // ✅ Support both new (fullName/streetAddress) and old (name/address) schema
+  const { fullName, streetAddress, name, address, city, postalCode, country } =
+    shippingAddress as ShippingAddress & {
+      name?: string;
+      address?: string;
+      fullName?: string;
+      streetAddress?: string;
+    };
+
+  const displayName = fullName ?? name ?? "N/A";
+  const displayAddress = streetAddress ?? address ?? "N/A";
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* LEFT SIDE */}
+      <div className="lg:col-span-2 space-y-6">
+        {/* Payment Info */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold">
+              Order #{order.id.slice(-6)}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            {/* Payment Method */}
+            <div>
+              <h3 className="font-semibold text-gray-700">Payment Method</h3>
+              <p>{order.paymentMethod}</p>
+              <span
+                className={`inline-block mt-1 px-2 py-1 text-xs rounded ${
+                  order.isPaid
+                    ? "bg-green-100 text-green-700"
+                    : "bg-red-100 text-red-700"
+                }`}
+              >
+                {order.isPaid ? "Paid" : "Not paid"}
+              </span>
+            </div>
+
+            {/* Shipping */}
+            <div>
+              <h3 className="font-semibold text-gray-700">Shipping Address</h3>
+              <p>
+                {displayName}
+                <br />
+                {displayAddress}, {city} {postalCode}, {country}
               </p>
-            ) : (
-              <p className="text-yellow-600 font-medium">Not delivered yet</p>
+              <span
+                className={`inline-block mt-1 px-2 py-1 text-xs rounded ${
+                  isDelivered
+                    ? "bg-green-100 text-green-700"
+                    : "bg-red-100 text-red-700"
+                }`}
+              >
+                {isDelivered ? "Delivered" : "Not Delivered"}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Order Items */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold">Order Items</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <table className="w-full text-sm border-t">
+              <thead className="text-left border-b">
+                <tr>
+                  <th className="py-2">Item</th>
+                  <th className="py-2 text-center">Quantity</th>
+                  <th className="py-2 text-right">Price</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item) => (
+                  <tr
+                    key={`${item.orderId}-${item.productId}`}
+                    className="border-b last:border-none hover:bg-gray-50"
+                  >
+                    <td className="flex items-center gap-3 py-2">
+                      <Image
+                        src={item.image}
+                        alt={item.name}
+                        width={40}
+                        height={40}
+                        className="rounded-md border bg-white"
+                      />
+                      <span>{item.name}</span>
+                    </td>
+                    <td className="text-center">{item.qty}</td>
+                    <td className="text-right">
+                      ${Number(item.price).toFixed(2)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* RIGHT SIDE */}
+      <div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold">
+              Order Summary
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex justify-between py-1 text-sm">
+              <span>Items</span>
+              <span>${Number(order.itemsPrice).toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between py-1 text-sm">
+              <span>Tax</span>
+              <span>${Number(order.taxPrice).toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between py-1 text-sm">
+              <span>Shipping</span>
+              <span>${Number(order.shippingPrice).toFixed(2)}</span>
+            </div>
+            <hr className="my-2" />
+            <div className="flex justify-between font-semibold text-base">
+              <span>Total</span>
+              <span>${Number(order.totalPrice).toFixed(2)}</span>
+            </div>
+
+            {/* ✅ Wrap PayPalSection inside the Provider */}
+            {!isPaid && order.paymentMethod === "PayPal" && (
+              <div className="mt-4">
+                <PayPalScriptProvider options={{ clientId: paypalClientId }}>
+                  <PayPalSection
+                    order={order}
+                    paypalClientId={paypalClientId}
+                  />
+                </PayPalScriptProvider>
+              </div>
             )}
-          </div>
-        </div>
-
-        <div className="bg-white p-6 shadow rounded-2xl">
-          <h2 className="font-semibold text-lg mb-3">Payment</h2>
-          <p className="text-gray-700 mb-2">
-            Method: <span className="font-medium">{order.paymentMethod}</span>
-          </p>
-          {order.isPaid ? (
-            <p className="text-green-600 font-medium">
-              Paid on {paid?.dateOnly}
-            </p>
-          ) : (
-            <p className="text-yellow-600 font-medium">Not paid yet</p>
-          )}
-        </div>
-      </div>
-
-      {/* Items */}
-      <div className="bg-white shadow rounded-2xl p-6">
-        <h2 className="font-semibold text-lg mb-4">Order Items</h2>
-        <table className="w-full text-sm">
-          <thead className="border-b">
-            <tr>
-              <th className="text-left pb-2">Product</th>
-              <th className="text-right pb-2">Qty</th>
-              <th className="text-right pb-2">Price</th>
-              <th className="text-right pb-2">Subtotal</th>
-            </tr>
-          </thead>
-          <tbody>
-            {order.items.map((item) => (
-              <tr key={item.productId} className="border-b last:border-none">
-                <td className="py-3">
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={item.image}
-                      alt={item.name}
-                      className="w-12 h-12 object-cover rounded-md"
-                    />
-                    <Link
-                      href={`/product/${item.slug}`}
-                      className="hover:underline"
-                    >
-                      {item.name}
-                    </Link>
-                  </div>
-                </td>
-                <td className="text-right">{item.qty}</td>
-                <td className="text-right">{formatCurrency(item.price)}</td>
-                <td className="text-right">
-                  {formatCurrency(item.price * item.qty)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Summary */}
-      <div className="bg-white shadow rounded-2xl p-6 md:w-1/2 ml-auto">
-        <h2 className="font-semibold text-lg mb-4">Order Summary</h2>
-        <div className="space-y-2 text-gray-700">
-          <div className="flex justify-between">
-            <span>Items</span>
-            <span>{formatCurrency(order.itemsPrice)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Shipping</span>
-            <span>{formatCurrency(order.shippingPrice)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Tax</span>
-            <span>{formatCurrency(order.taxPrice)}</span>
-          </div>
-          <hr className="my-2" />
-          <div className="flex justify-between font-semibold text-lg">
-            <span>Total</span>
-            <span>{formatCurrency(order.totalPrice)}</span>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
-}
+};
+
+export default OrderDetailsTable;
