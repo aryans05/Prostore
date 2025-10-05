@@ -1,3 +1,6 @@
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 import { auth } from "@/auth";
 import { getMyCart } from "@/lib/actions/cart.actions";
 import { Metadata } from "next";

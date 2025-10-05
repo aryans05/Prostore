@@ -1,3 +1,6 @@
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 import CartTable from "./cart-table";
 import { getMyCart } from "@/lib/actions/cart.actions";
 
