@@ -1,6 +1,10 @@
 // lib/prisma.ts
 import { PrismaClient } from "@prisma/client";
 
+/**
+ * ✅ Creates an extended PrismaClient with automatic Decimal → string conversion.
+ * Works with Neon serverless in production and local Prisma in development.
+ */
 function createExtendedClient(
   options?: ConstructorParameters<typeof PrismaClient>[0]
 ) {
@@ -8,7 +12,9 @@ function createExtendedClient(
 
   return client.$extends({
     result: {
-      // ✅ Automatically convert Decimal → string
+      // ===============================
+      // 🛍️ Product
+      // ===============================
       product: {
         price: {
           compute(product) {
@@ -21,6 +27,10 @@ function createExtendedClient(
           },
         },
       },
+
+      // ===============================
+      // 🛒 Cart
+      // ===============================
       cart: {
         itemsPrice: {
           compute(cart) {
@@ -43,6 +53,10 @@ function createExtendedClient(
           },
         },
       },
+
+      // ===============================
+      // 📦 Order
+      // ===============================
       order: {
         itemsPrice: {
           compute(order) {
@@ -65,6 +79,10 @@ function createExtendedClient(
           },
         },
       },
+
+      // ===============================
+      // 🧾 Order Item
+      // ===============================
       orderItem: {
         price: {
           compute(item) {
@@ -76,39 +94,53 @@ function createExtendedClient(
   });
 }
 
-// ✅ Client variable (shared across environments)
+// ============================================================
+// 🔧 Prisma client instance (shared across environments)
+// ============================================================
 let prisma: ReturnType<typeof createExtendedClient>;
 
 // ============================================================
-// 🏗️ PRODUCTION (Neon serverless, WebSocket adapter)
+// 🏗️ PRODUCTION — Neon Serverless + WebSocket adapter
 // ============================================================
 if (process.env.NODE_ENV === "production") {
   try {
+    // Dynamically import Neon dependencies
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { Pool, neonConfig } = require("@neondatabase/serverless");
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { PrismaNeon } = require("@prisma/adapter-neon");
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const wsImport = require("ws");
     const ws = wsImport?.default ?? wsImport;
 
+    // ✅ Ensure database URL exists
     if (!process.env.DATABASE_URL) {
-      throw new Error("❌ DATABASE_URL is missing. Check your .env file.");
+      throw new Error(
+        "❌ DATABASE_URL is missing. Please check your .env file."
+      );
     }
 
+    // ✅ Enable WebSocket for Neon
     neonConfig.webSocketConstructor = ws;
 
+    // ✅ Create Neon pool + adapter
     const pool = new Pool({ connectionString: process.env.DATABASE_URL });
     const adapter = new PrismaNeon(pool);
 
+    // ✅ Create extended Prisma client with Neon adapter
     prisma = createExtendedClient({ adapter });
+
+    console.log("✅ Connected to Neon database successfully (production)");
   } catch (err) {
     console.error(
-      "⚠️ Neon adapter failed. Falling back to standard Prisma:",
+      "⚠️ Neon adapter initialization failed. Falling back to standard Prisma client:",
       err
     );
     prisma = createExtendedClient();
   }
 }
 // ============================================================
-// 🧑‍💻 DEVELOPMENT (reuse Prisma client to avoid hot reload leaks)
+// 🧑‍💻 DEVELOPMENT — reuse Prisma instance across hot reloads
 // ============================================================
 else {
   const globalForPrisma = globalThis as unknown as { prisma?: typeof prisma };
@@ -117,6 +149,7 @@ else {
     globalForPrisma.prisma = createExtendedClient({
       log: ["query", "error", "warn"],
     });
+    console.log("✅ Prisma connected locally (development mode)");
   }
 
   prisma = globalForPrisma.prisma;
