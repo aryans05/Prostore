@@ -1,17 +1,30 @@
 // lib/prisma.ts
 import { PrismaClient } from "@prisma/client";
 
-declare global {
-  // attach to globalThis in dev to prevent creating multiple clients during hot reloads
-  // eslint-disable-next-line no-var
-  var prisma: PrismaClient | undefined;
-}
+let prisma: ReturnType<typeof createExtendedClient>;
 
-let prisma: PrismaClient;
+function createExtendedClient(client: PrismaClient) {
+  return client.$extends({
+    result: {
+      product: {
+        price: {
+          compute(product) {
+            return product.price?.toString();
+          },
+        },
+        rating: {
+          compute(product) {
+            return product.rating?.toString();
+          },
+        },
+      },
+    },
+  });
+}
 
 if (process.env.NODE_ENV === "production") {
   try {
-    // Use require here to avoid top-level await and keep this server-only.
+    // Dynamically require Neon deps to avoid Next.js build issues
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { Pool, neonConfig } = require("@neondatabase/serverless");
     // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -31,47 +44,26 @@ if (process.env.NODE_ENV === "production") {
     const pool = new Pool({ connectionString: process.env.DATABASE_URL });
     const adapter = new PrismaNeon(pool);
 
-    prisma = new PrismaClient({ adapter }).$extends({
-      result: {
-        product: {
-          price: {
-            compute(product: any) {
-              return product.price?.toString();
-            },
-          },
-          rating: {
-            compute(product: any) {
-              return product.rating?.toString();
-            },
-          },
-        },
-      },
-    });
+    const baseClient = new PrismaClient({ adapter });
+    prisma = createExtendedClient(baseClient);
   } catch (err) {
-    // If something goes wrong with the Neon adapter, fall back to a plain PrismaClient.
-    // This prevents the whole app from crashing in production if adapter packages fail.
-    // Log the error so you can investigate.
-    // eslint-disable-next-line no-console
     console.error(
-      "Error creating Prisma client with Neon adapter, falling back:",
+      "⚠️ Failed to init Prisma with Neon adapter. Falling back:",
       err
     );
-    prisma = new PrismaClient();
+    prisma = createExtendedClient(new PrismaClient());
   }
 } else {
-  // Development: create / reuse a global Prisma client to avoid exhausting connections
-  const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
+  // Development: reuse Prisma client on hot reloads
+  const globalForPrisma = globalThis as unknown as { prisma?: typeof prisma };
 
-  prisma =
-    globalForPrisma.prisma ??
-    new PrismaClient({
-      log: ["query", "error", "warn"],
-    });
-
-  if (process.env.NODE_ENV !== "production") {
-    globalForPrisma.prisma = prisma;
+  if (!globalForPrisma.prisma) {
+    const baseClient = new PrismaClient({ log: ["query", "error", "warn"] });
+    globalForPrisma.prisma = createExtendedClient(baseClient);
   }
+
+  prisma = globalForPrisma.prisma;
 }
 
-export { prisma };
 export default prisma;
+export { prisma };

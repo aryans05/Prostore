@@ -6,7 +6,7 @@ import ProductPrice from "@/components/shared/product/product-pricing";
 import ProductImages from "@/components/shared/product/product-images";
 import AddToCart from "@/components/shared/product/add-to-cart";
 import { getMyCart } from "@/lib/actions/cart.actions";
-import type { Cart, CartItem } from "@/types";
+import type { Cart } from "@/types";
 
 /**
  * Serialize Date/Decimal -> JSON-safe strings/numbers
@@ -20,7 +20,6 @@ const ProductDetailsPage = async ({
 }: {
   params: Promise<{ slug: string }>;
 }) => {
-  // ✅ await params for Next.js App Router dynamic routes
   const { slug } = await params;
 
   const product = await getProductBySlug(slug);
@@ -28,29 +27,24 @@ const ProductDetailsPage = async ({
 
   const cart = await getMyCart();
 
-  // ✅ Serialize cart (if exists)
+  // ✅ SafeCart matches our Cart type
   const safeCart: Cart | null = cart
     ? {
-        ...cart,
+        id: cart.id,
+        sessionCartId: cart.sessionCartId ?? "",
+        userId: cart.userId ?? undefined,
         itemsPrice: Number(cart.itemsPrice),
         totalPrice: Number(cart.totalPrice),
         shippingPrice: Number(cart.shippingPrice),
         taxPrice: Number(cart.taxPrice),
         createdAt: toPlainDate(cart.createdAt),
         items: cart.items.map((item) => ({
-          ...item,
+          productId: item.productId,
+          name: item.product.name,
+          slug: item.product.slug,
+          quantity: item.quantity,
+          image: item.product.images?.[0] ?? "/placeholder.png",
           price: Number(item.price ?? 0),
-          quantity: Number(item.quantity),
-          createdAt: toPlainDate(item.createdAt),
-          updatedAt: toPlainDate(item.updatedAt),
-          product: item.product
-            ? {
-                ...item.product,
-                price: Number(item.product.price),
-                rating: Number(item.product.rating),
-                createdAt: toPlainDate(item.product.createdAt),
-              }
-            : null,
         })),
       }
     : null;
@@ -72,6 +66,8 @@ const ProductDetailsPage = async ({
     banner: product.banner,
     createdAt: toPlainDate(product.createdAt),
   };
+
+  const inStock = safeProduct.stock > 0;
 
   return (
     <section>
@@ -115,28 +111,42 @@ const ProductDetailsPage = async ({
                   <span>Price</span>
                   <ProductPrice value={safeProduct.price} />
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center">
                   <span>Status</span>
-                  {safeProduct.stock > 0 ? (
-                    <Badge variant="outline">In Stock</Badge>
+                  {inStock ? (
+                    <Badge
+                      variant="outline"
+                      className="text-green-700 border-green-500"
+                    >
+                      In Stock
+                    </Badge>
                   ) : (
                     <Badge variant="destructive">Out of Stock</Badge>
                   )}
                 </div>
+
+                {/* 🧠 Show AddToCart button only if in stock */}
                 <div className="pt-3">
-                  <AddToCart
-                    cart={safeCart}
-                    item={
-                      {
+                  {inStock ? (
+                    <AddToCart
+                      cart={safeCart || undefined}
+                      item={{
                         productId: safeProduct.id,
                         slug: safeProduct.slug,
                         name: safeProduct.name,
                         price: safeProduct.price,
                         quantity: 1,
                         image: safeProduct.images?.[0] ?? "/placeholder.png",
-                      } satisfies Omit<CartItem, "cartId">
-                    }
-                  />
+                      }}
+                    />
+                  ) : (
+                    <button
+                      disabled
+                      className="w-full rounded-md bg-gray-100 text-gray-500 py-2 font-medium cursor-not-allowed"
+                    >
+                      Out of Stock
+                    </button>
+                  )}
                 </div>
               </CardContent>
             </Card>

@@ -25,6 +25,7 @@ model User {
   accounts      Account[]
   carts         Cart[]
   sessions      Session[]
+  orders        Order[]
 }
 
 model Account {
@@ -41,7 +42,8 @@ model Account {
   session_state     String?
   createdAt         DateTime @default(now()) @db.Timestamp(6)
   updatedAt         DateTime @updatedAt
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([provider, providerAccountId])
 }
@@ -52,7 +54,8 @@ model Session {
   expires      DateTime @db.Timestamp(6)
   createdAt    DateTime @default(now()) @db.Timestamp(6)
   updatedAt    DateTime @updatedAt
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model VerificationToken {
@@ -81,20 +84,23 @@ model Product {
   isFeatured  Boolean    @default(false)
   banner      String?
   createdAt   DateTime   @default(now()) @db.Timestamp(6)
+
   cartItems   CartItem[]
+  orderItems  OrderItem[]
 }
 
 model Cart {
   id            String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId        String?    @db.Uuid
-  sessionCartId String?    @unique   // ✅ make optional
+  sessionCartId String?    @unique
   itemsPrice    Decimal    @db.Decimal(12, 2)
   totalPrice    Decimal    @db.Decimal(12, 2)
   shippingPrice Decimal    @db.Decimal(12, 2)
   taxPrice      Decimal    @db.Decimal(12, 2)
   createdAt     DateTime   @default(now()) @db.Timestamp(6)
-  user          User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  items         CartItem[]
+
+  user  User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items CartItem[]
 }
 
 model CartItem {
@@ -102,10 +108,45 @@ model CartItem {
   cartId    String   @db.Uuid
   productId String   @db.Uuid
   quantity  Int      @default(1)
-  price     Decimal? @db.Decimal(12, 2) // ✅ keep optional for migration safety
+  price     Decimal? @db.Decimal(12, 2)
   createdAt DateTime @default(now()) @db.Timestamp(6)
   updatedAt DateTime @updatedAt
 
-  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  cart    Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model Order {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String   @db.Uuid
+  shippingAddress Json     @db.Json    // ✅ Added this field
+  paymentMethod   String
+  paymentResult   Json?    @db.Json
+  itemsPrice      Decimal  @db.Decimal(12, 2)
+  shippingPrice   Decimal  @db.Decimal(12, 2)
+  taxPrice        Decimal  @db.Decimal(12, 2)
+  totalPrice      Decimal  @db.Decimal(12, 2)
+  isPaid          Boolean  @default(false)
+  paidAt          DateTime? @db.Timestamp(6)
+  isDelivered     Boolean  @default(false)
+  deliveredAt     DateTime? @db.Timestamp(6)
+  createdAt       DateTime  @default(now()) @db.Timestamp(6)
+
+  user  User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items OrderItem[]
+}
+
+model OrderItem {
+  orderId   String  @db.Uuid
+  productId String  @db.Uuid
+  qty       Int
+  price     Decimal @db.Decimal(12, 2)
+  name      String
+  slug      String
+  image     String
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([orderId, productId], map: "orderitems_orderId_productId_pk")
 }

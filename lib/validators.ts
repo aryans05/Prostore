@@ -1,16 +1,17 @@
 import { z } from "zod";
 import { formatNumberWithDecimal } from "./utils";
+import { PAYMENT_METHODS } from "./constants";
 
 // 🔑 Reusable Currency Schema
 const currencySchema = z
   .number()
-  .positive("Price must be greater than 0")
+  .nonnegative("Price must be greater than or equal to 0")
   .refine(
     (value) => /^\d+(\.\d{2})?$/.test(formatNumberWithDecimal(value)),
     "Price must have two decimal places"
   );
 
-// Schema for inserting Products
+// ✅ Product Schema
 export const insertProductSchema = z.object({
   name: z.string().min(3, "Name must be at least 3 characters"),
   slug: z.string().min(3, "Slug must be at least 3 characters"),
@@ -29,13 +30,13 @@ export const insertProductSchema = z.object({
     ),
 });
 
-// Schema for signing users in
+// ✅ Sign-in Schema
 export const signInFormSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
-// Schema for signing up
+// ✅ Sign-up Schema
 export const signUpFormSchema = z
   .object({
     name: z.string().min(3, "Name must be at least 3 characters"),
@@ -50,20 +51,20 @@ export const signUpFormSchema = z
     path: ["confirmPassword"],
   });
 
-// Cart Item Schema
+// ✅ Cart Item Schema (uses quantity)
 export const cartItemSchema = z.object({
   productId: z.string().min(1, "Product is required"),
   name: z.string().min(1, "Name is required"),
   slug: z.string().min(1, "Slug is required"),
-  qty: z.number().int().min(1, "Quantity must be a positive number"),
+  quantity: z.number().int().min(1, "Quantity must be at least 1"), // ✅ Cart always quantity
   image: z.string().min(1, "Product image is required"),
   price: currencySchema,
 });
 
-// Insert Cart Schema
+// ✅ Cart Schema (uses itemsPrice, plural)
 export const insertCartSchema = z.object({
   items: z.array(cartItemSchema),
-  itemPrice: currencySchema,
+  itemsPrice: currencySchema, // ✅ fixed plural
   totalPrice: currencySchema,
   shippingPrice: currencySchema,
   taxPrice: currencySchema,
@@ -71,14 +72,46 @@ export const insertCartSchema = z.object({
   userId: z.string().optional().nullable(),
 });
 
-// Schema for the shipping address
-
+// ✅ Shipping Address
 export const shippingAddressSchema = z.object({
   fullName: z.string().min(3, "Name must be at least 3 characters"),
   streetAddress: z.string().min(3, "Address must be at least 3 characters"),
   city: z.string().min(3, "City must be at least 3 characters"),
-  postalCode: z.string().min(3, "postalCode must be at least 3 characters"),
-  country: z.string().min(3, "Name must be at least 3 characters"),
+  postalCode: z.string().min(3, "Postal code must be at least 3 characters"),
+  country: z.string().min(3, "Country must be at least 3 characters"),
   lat: z.number().optional(),
   lng: z.number().optional(),
+});
+
+// ✅ Payment Method Schema
+export const paymentMethodSchema = z
+  .object({
+    type: z.string().min(1, "Payment method is required"),
+  })
+  .refine((data) => PAYMENT_METHODS.includes(data.type), {
+    path: ["type"],
+    message: "Invalid payment method",
+  });
+
+// ✅ Order Schema
+export const insertOrderSchema = z.object({
+  userId: z.string().min(1, "User is required"),
+  itemsPrice: currencySchema,
+  shippingPrice: currencySchema,
+  taxPrice: currencySchema,
+  totalPrice: currencySchema,
+  paymentMethod: z.string().refine((data) => PAYMENT_METHODS.includes(data), {
+    message: "Invalid payment method",
+  }),
+  shippingAddress: shippingAddressSchema,
+});
+
+// ✅ Order Item Schema (uses qty, because Prisma `OrderItem` has qty)
+export const insertOrderItemSchema = z.object({
+  productId: z.string(),
+  slug: z.string(),
+  image: z.string(),
+  name: z.string(),
+  price: currencySchema,
+  qty: z.number().int().min(1, "Qty must be at least 1"), // ✅ Order uses qty
 });

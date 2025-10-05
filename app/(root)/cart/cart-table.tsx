@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { useTransition, useState, useMemo } from "react";
 import { addItemToCart, removeItemFromCart } from "@/lib/actions/cart.actions";
-import { Cart } from "@/types";
+import { SafeCart } from "@/lib/actions/cart.actions"; // ✅ import SafeCart instead of Cart
 import { Plus, Minus } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -18,28 +18,20 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 
-const CartTable = ({ cart }: { cart?: Cart }) => {
+const CartTable = ({ cart }: { cart?: SafeCart }) => {
   const router = useRouter();
   const { toast } = useToast();
   const [isPending, startTransition] = useTransition();
 
-  // ✅ Initialize directly from cart
-  const [items, setItems] = useState<Cart["items"]>(cart?.items || []);
-
-  // ✅ Ensure we always return a single valid image URL
-  const getProductImage = (images?: string[]) => {
-    if (images && images.length > 0) {
-      return images[0]; // take the first image only
-    }
-    return "/images/sample-products/p1-1.jpg"; // fallback
-  };
+  // ✅ Initialize from cart
+  const [items, setItems] = useState<SafeCart["items"]>(cart?.items || []);
 
   // ✅ Calculate subtotal
   const subtotal = useMemo(() => {
     return items.reduce((sum, i) => sum + Number(i.price) * i.quantity, 0);
   }, [items]);
 
-  // ✅ Handle add item (optimistic update)
+  // ✅ Add item (optimistic update)
   const handleAdd = (productId: string) => {
     setItems((prev) =>
       prev.map((i) =>
@@ -48,22 +40,24 @@ const CartTable = ({ cart }: { cart?: Cart }) => {
     );
 
     startTransition(async () => {
-      await addItemToCart({ productId, quantity: 1 });
+      await addItemToCart({
+        productId,
+        quantity: 1, // ✅ backend only expects productId + quantity
+      });
       toast({ title: "Item added to cart" });
     });
   };
 
-  // ✅ Handle remove item (optimistic update with auto-delete at 0)
+  // ✅ Remove item (optimistic update, auto-delete if 0)
   const handleRemove = (productId: string) => {
-    setItems(
-      (prev) =>
-        prev
-          .map((i) =>
-            i.productId === productId
-              ? { ...i, quantity: Math.max(0, i.quantity - 1) }
-              : i
-          )
-          .filter((i) => i.quantity > 0) // ✅ remove zero-quantity items instantly
+    setItems((prev) =>
+      prev
+        .map((i) =>
+          i.productId === productId
+            ? { ...i, quantity: Math.max(0, i.quantity - 1) }
+            : i
+        )
+        .filter((i) => i.quantity > 0)
     );
 
     startTransition(async () => {
@@ -94,21 +88,24 @@ const CartTable = ({ cart }: { cart?: Cart }) => {
               </TableHeader>
               <TableBody>
                 {items.map((item) => (
-                  <TableRow key={item.id ?? item.productId}>
+                  <TableRow key={item.id}>
                     {/* Product column */}
                     <TableCell>
                       <Link
-                        href={`/product/${item.product?.slug}`}
+                        href={`/product/${item.product.slug}`}
                         className="flex items-center gap-3"
                       >
                         <Image
-                          src={getProductImage(item.product?.images)}
-                          alt={item.product?.name ?? "Product"}
+                          src={
+                            item.product.images?.[0] ||
+                            "/images/sample-products/p1-1.jpg"
+                          }
+                          alt={item.product.name}
                           width={50}
                           height={50}
                           className="rounded"
                         />
-                        <span>{item.product?.name}</span>
+                        <span>{item.product.name}</span>
                       </Link>
                     </TableCell>
 
