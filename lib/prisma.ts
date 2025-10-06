@@ -114,15 +114,13 @@ if (process.env.NODE_ENV === "production") {
       throw new Error("❌ DATABASE_URL is missing in .env");
     }
 
-    // ✅ Neon WebSocket for serverless
+    // ✅ Use Neon WebSocket
     neonConfig.webSocketConstructor = ws;
 
     const pool = new Pool({ connectionString: process.env.DATABASE_URL });
     const adapter = new PrismaNeon(pool);
 
-    // ✅ FIX: cast options to `any` to avoid TS error
     prisma = createExtendedClient({ adapter } as any);
-
     console.log("✅ Connected to Neon database successfully (production)");
   } catch (err) {
     console.error(
@@ -133,7 +131,7 @@ if (process.env.NODE_ENV === "production") {
   }
 }
 // ============================================================
-// 🧑‍💻 DEVELOPMENT — reuse Prisma instance (Next.js hot reload safe)
+// 🧑‍💻 DEVELOPMENT — reuse Prisma instance across hot reloads
 // ============================================================
 else {
   const globalForPrisma = globalThis as unknown as { prisma?: typeof prisma };
@@ -149,7 +147,12 @@ else {
 }
 
 // ============================================================
-// ✅ Export single Prisma instance
+// ✅ Export both named and default instances
 // ============================================================
-export default prisma;
-export { prisma };
+export const db = prisma; // alias for convenience
+export const prismaClient = prisma; // another alias if needed
+export const prismaInstance = prisma; // (optional alias for clarity)
+export const prismaExport = prisma; // keep multiple naming compat
+
+export { prisma }; // ✅ for named import
+export default prisma; // ✅ for default import
