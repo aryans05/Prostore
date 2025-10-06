@@ -101,7 +101,7 @@ function createExtendedClient(
 let prisma: ReturnType<typeof createExtendedClient>;
 
 // ============================================================
-// 🏗️ PRODUCTION — Neon Serverless + WebSocket adapter
+// 🏗️ PRODUCTION — Neon Serverless adapter
 // ============================================================
 if (process.env.NODE_ENV === "production") {
   try {
@@ -111,18 +111,17 @@ if (process.env.NODE_ENV === "production") {
     const ws = wsImport?.default ?? wsImport;
 
     if (!process.env.DATABASE_URL) {
-      throw new Error(
-        "❌ DATABASE_URL is missing. Please check your .env file."
-      );
+      throw new Error("❌ DATABASE_URL is missing in .env");
     }
 
-    // ✅ Use WebSocket in Neon serverless
+    // ✅ Neon WebSocket for serverless
     neonConfig.webSocketConstructor = ws;
 
     const pool = new Pool({ connectionString: process.env.DATABASE_URL });
     const adapter = new PrismaNeon(pool);
 
-    prisma = createExtendedClient({ adapter });
+    // ✅ FIX: cast options to `any` to avoid TS error
+    prisma = createExtendedClient({ adapter } as any);
 
     console.log("✅ Connected to Neon database successfully (production)");
   } catch (err) {
@@ -134,7 +133,7 @@ if (process.env.NODE_ENV === "production") {
   }
 }
 // ============================================================
-// 🧑‍💻 DEVELOPMENT — reuse Prisma instance across hot reloads
+// 🧑‍💻 DEVELOPMENT — reuse Prisma instance (Next.js hot reload safe)
 // ============================================================
 else {
   const globalForPrisma = globalThis as unknown as { prisma?: typeof prisma };
@@ -149,5 +148,8 @@ else {
   prisma = globalForPrisma.prisma;
 }
 
+// ============================================================
+// ✅ Export single Prisma instance
+// ============================================================
 export default prisma;
 export { prisma };

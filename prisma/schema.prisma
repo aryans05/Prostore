@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider   = "prisma-client-js"
+  engineType = "library"
 }
 
 datasource db {
@@ -119,7 +120,7 @@ model CartItem {
 model Order {
   id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId          String   @db.Uuid
-  shippingAddress Json     @db.Json    // ✅ Added this field
+  shippingAddress Json     @db.Json
   paymentMethod   String
   paymentResult   Json?    @db.Json
   itemsPrice      Decimal  @db.Decimal(12, 2)
