@@ -1,10 +1,25 @@
 // lib/prisma.ts
 import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
+import { neonConfig } from "@neondatabase/serverless";
+import { PrismaNeon } from "@prisma/adapter-neon";
+import ws from "ws";
 
 /**
- * ✅ Creates an extended PrismaClient with automatic Decimal → string conversion.
- * Works with Neon serverless in production and local Prisma in development.
+ * ✅ Neon requires WebSocket connections for serverless Postgres.
+ */
+neonConfig.webSocketConstructor = ws;
+
+/**
+ * ✅ Ensure DATABASE_URL exists
+ */
+if (!process.env.DATABASE_URL) {
+  throw new Error("❌ DATABASE_URL is missing in environment variables.");
+}
+
+/**
+ * ✅ Create an extended Prisma client with Decimal → string conversion.
+ * Keeps JSON safe when sending data to the frontend.
  */
 function createExtendedClient(
   options?: ConstructorParameters<typeof PrismaClient>[0]
@@ -19,12 +34,12 @@ function createExtendedClient(
       product: {
         price: {
           compute(product) {
-            return product.price?.toString();
+            return product.price?.toString() ?? null;
           },
         },
         rating: {
           compute(product) {
-            return product.rating?.toString();
+            return product.rating?.toString() ?? null;
           },
         },
       },
@@ -35,22 +50,22 @@ function createExtendedClient(
       cart: {
         itemsPrice: {
           compute(cart) {
-            return cart.itemsPrice?.toString();
+            return cart.itemsPrice?.toString() ?? null;
           },
         },
         totalPrice: {
           compute(cart) {
-            return cart.totalPrice?.toString();
+            return cart.totalPrice?.toString() ?? null;
           },
         },
         shippingPrice: {
           compute(cart) {
-            return cart.shippingPrice?.toString();
+            return cart.shippingPrice?.toString() ?? null;
           },
         },
         taxPrice: {
           compute(cart) {
-            return cart.taxPrice?.toString();
+            return cart.taxPrice?.toString() ?? null;
           },
         },
       },
@@ -61,33 +76,33 @@ function createExtendedClient(
       order: {
         itemsPrice: {
           compute(order) {
-            return order.itemsPrice?.toString();
+            return order.itemsPrice?.toString() ?? null;
           },
         },
         totalPrice: {
           compute(order) {
-            return order.totalPrice?.toString();
+            return order.totalPrice?.toString() ?? null;
           },
         },
         shippingPrice: {
           compute(order) {
-            return order.shippingPrice?.toString();
+            return order.shippingPrice?.toString() ?? null;
           },
         },
         taxPrice: {
           compute(order) {
-            return order.taxPrice?.toString();
+            return order.taxPrice?.toString() ?? null;
           },
         },
       },
 
       // ===============================
-      // 🧾 Order Item
+      // 🧾 OrderItem
       // ===============================
       orderItem: {
         price: {
           compute(item) {
-            return item.price?.toString();
+            return item.price?.toString() ?? null;
           },
         },
       },
@@ -96,30 +111,19 @@ function createExtendedClient(
 }
 
 // ============================================================
-// 🔧 Prisma client instance (shared across environments)
+// 🔧 Initialize Prisma Client (Single source of truth)
 // ============================================================
+
 let prisma: ReturnType<typeof createExtendedClient>;
 
-// ============================================================
-// 🏗️ PRODUCTION — Neon Serverless adapter
-// ============================================================
 if (process.env.NODE_ENV === "production") {
   try {
-    const { Pool, neonConfig } = require("@neondatabase/serverless");
-    const { PrismaNeon } = require("@prisma/adapter-neon");
-    const wsImport = require("ws");
-    const ws = wsImport?.default ?? wsImport;
+    // ✅ Neon serverless setup
+    const adapter = new PrismaNeon({
+      connectionString: process.env.DATABASE_URL,
+    });
 
-    if (!process.env.DATABASE_URL) {
-      throw new Error("❌ DATABASE_URL is missing in .env");
-    }
-
-    // ✅ Use Neon WebSocket
-    neonConfig.webSocketConstructor = ws;
-
-    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-    const adapter = new PrismaNeon(pool);
-
+    // PrismaNeon adapter works only with `engineType = "library"`
     prisma = createExtendedClient({ adapter } as any);
     console.log("✅ Connected to Neon database successfully (production)");
   } catch (err) {
@@ -129,12 +133,13 @@ if (process.env.NODE_ENV === "production") {
     );
     prisma = createExtendedClient();
   }
-}
-// ============================================================
-// 🧑‍💻 DEVELOPMENT — reuse Prisma instance across hot reloads
-// ============================================================
-else {
-  const globalForPrisma = globalThis as unknown as { prisma?: typeof prisma };
+} else {
+  // ============================================================
+  // 🧑‍💻 Local Development — supports hot reloads safely
+  // ============================================================
+  const globalForPrisma = globalThis as unknown as {
+    prisma?: ReturnType<typeof createExtendedClient>;
+  };
 
   if (!globalForPrisma.prisma) {
     globalForPrisma.prisma = createExtendedClient({
@@ -147,12 +152,7 @@ else {
 }
 
 // ============================================================
-// ✅ Export both named and default instances
+// ✅ Export single Prisma instance
 // ============================================================
-export const db = prisma; // alias for convenience
-export const prismaClient = prisma; // another alias if needed
-export const prismaInstance = prisma; // (optional alias for clarity)
-export const prismaExport = prisma; // keep multiple naming compat
-
-export { prisma }; // ✅ for named import
-export default prisma; // ✅ for default import
+export default prisma;
+export { prisma };
