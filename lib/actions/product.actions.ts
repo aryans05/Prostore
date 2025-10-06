@@ -1,6 +1,6 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/db/prisma";
 import { convertToPlainObject } from "@/lib/utils";
 import type { Product } from "@/types";
 

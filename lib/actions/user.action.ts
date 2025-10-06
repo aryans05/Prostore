@@ -9,7 +9,7 @@ import {
 import { auth, signIn, signOut } from "@/auth";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { hashSync } from "bcryptjs";
-import prisma from "@/lib/prisma";
+import prisma from "@/db/prisma";
 import { ShippingAddress } from "@/types";
 import { formatError } from "../utils";
 import z from "zod";
