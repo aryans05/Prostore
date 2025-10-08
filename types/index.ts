@@ -41,11 +41,19 @@ export type BasicProduct = {
    🛒 CART TYPES
    ============================================================ */
 
+/**
+ * ✅ Cart Type
+ * Represents the full shopping cart structure, including prices.
+ */
 export type Cart = z.infer<typeof insertCartSchema> & {
   id: string;
   createdAt: string | Date; // ISO string or Date
 };
 
+/**
+ * ✅ Cart Item Type
+ * Represents each product in the cart.
+ */
 export type CartItem = z.infer<typeof cartItemSchema> & {
   id?: string; // optional DB ID for frontend usage
   cartId?: string;
@@ -55,18 +63,30 @@ export type CartItem = z.infer<typeof cartItemSchema> & {
    🚚 SHIPPING TYPES
    ============================================================ */
 
+/**
+ * ✅ Shipping Address Type
+ * Matches the `shippingAddressSchema` used in checkout.
+ */
 export type ShippingAddress = z.infer<typeof shippingAddressSchema>;
 
 /* ============================================================
    📦 ORDER TYPES
    ============================================================ */
 
+/**
+ * ✅ Order Item Type
+ * Represents a single product within an order.
+ */
 export type OrderItem = z.infer<typeof insertOrderItemSchema> & {
   id?: string;
   orderId?: string;
   productId?: string;
 };
 
+/**
+ * ✅ Order Type
+ * Represents the full order including relationships and computed totals.
+ */
 export type Order = z.infer<typeof insertOrderSchema> & {
   id: string;
   createdAt: Date;
@@ -93,4 +113,8 @@ export type Order = z.infer<typeof insertOrderSchema> & {
    💳 PAYMENT TYPES
    ============================================================ */
 
+/**
+ * ✅ Payment Result Type
+ * Used for PayPal or Stripe payment results.
+ */
 export type PaymentResult = z.infer<typeof paymentResultSchema>;

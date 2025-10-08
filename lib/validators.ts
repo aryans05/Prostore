@@ -2,8 +2,10 @@ import { z } from "zod";
 import { formatNumberWithDecimal } from "./utils";
 import { PAYMENT_METHODS } from "./constants";
 
-// 🔑 Reusable Currency Schema
-const currencySchema = z
+/* =======================================================
+   💰 Currency Schema (Reusable)
+   ======================================================= */
+export const currencySchema = z.coerce
   .number()
   .nonnegative("Price must be greater than or equal to 0")
   .refine(
@@ -11,32 +13,30 @@ const currencySchema = z
     "Price must have two decimal places"
   );
 
-// ✅ Product Schema
+/* =======================================================
+   🛍️ Product Schema
+   ======================================================= */
 export const insertProductSchema = z.object({
   name: z.string().min(3, "Name must be at least 3 characters"),
   slug: z.string().min(3, "Slug must be at least 3 characters"),
   category: z.string().min(3, "Category must be at least 3 characters"),
   brand: z.string().min(3, "Brand must be at least 3 characters"),
   description: z.string().min(3, "Description must be at least 3 characters"),
-  stock: z.coerce.number(),
+  stock: z.coerce.number().min(0, "Stock must be a non-negative number"),
   images: z.array(z.string()).min(1, "Product must have at least one image"),
   isFeatured: z.boolean(),
   banner: z.string().nullable(),
-  price: z
-    .string()
-    .refine(
-      (value) => /^\d+(\.\d{2})?$/.test(formatNumberWithDecimal(Number(value))),
-      "Price must have two decimal places"
-    ),
+  price: currencySchema,
 });
 
-// ✅ Sign-in Schema
+/* =======================================================
+   🔐 Auth Schemas
+   ======================================================= */
 export const signInFormSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
-// ✅ Sign-up Schema
 export const signUpFormSchema = z
   .object({
     name: z.string().min(3, "Name must be at least 3 characters"),
@@ -51,20 +51,21 @@ export const signUpFormSchema = z
     path: ["confirmPassword"],
   });
 
-// ✅ Cart Item Schema (uses quantity)
+/* =======================================================
+   🛒 Cart Schemas
+   ======================================================= */
 export const cartItemSchema = z.object({
   productId: z.string().min(1, "Product is required"),
   name: z.string().min(1, "Name is required"),
   slug: z.string().min(1, "Slug is required"),
-  quantity: z.number().int().min(1, "Quantity must be at least 1"), // ✅ Cart always quantity
+  quantity: z.number().int().min(1, "Quantity must be at least 1"),
   image: z.string().min(1, "Product image is required"),
   price: currencySchema,
 });
 
-// ✅ Cart Schema (uses itemsPrice, plural)
 export const insertCartSchema = z.object({
   items: z.array(cartItemSchema),
-  itemsPrice: currencySchema, // ✅ fixed plural
+  itemsPrice: currencySchema,
   totalPrice: currencySchema,
   shippingPrice: currencySchema,
   taxPrice: currencySchema,
@@ -72,7 +73,9 @@ export const insertCartSchema = z.object({
   userId: z.string().optional().nullable(),
 });
 
-// ✅ Shipping Address
+/* =======================================================
+   📦 Shipping Schema
+   ======================================================= */
 export const shippingAddressSchema = z.object({
   fullName: z.string().min(3, "Name must be at least 3 characters"),
   streetAddress: z.string().min(3, "Address must be at least 3 characters"),
@@ -83,7 +86,9 @@ export const shippingAddressSchema = z.object({
   lng: z.number().optional(),
 });
 
-// ✅ Payment Method Schema
+/* =======================================================
+   💳 Payment Schema
+   ======================================================= */
 export const paymentMethodSchema = z
   .object({
     type: z.string().min(1, "Payment method is required"),
@@ -93,7 +98,9 @@ export const paymentMethodSchema = z
     message: "Invalid payment method",
   });
 
-// ✅ Order Schema
+/* =======================================================
+   📦 Order Schemas
+   ======================================================= */
 export const insertOrderSchema = z.object({
   userId: z.string().min(1, "User is required"),
   itemsPrice: currencySchema,
@@ -106,19 +113,29 @@ export const insertOrderSchema = z.object({
   shippingAddress: shippingAddressSchema,
 });
 
-// ✅ Order Item Schema (uses qty, because Prisma `OrderItem` has qty)
 export const insertOrderItemSchema = z.object({
   productId: z.string(),
   slug: z.string(),
   image: z.string(),
   name: z.string(),
   price: currencySchema,
-  qty: z.number().int().min(1, "Qty must be at least 1"), // ✅ Order uses qty
+  qty: z.number().int().min(1, "Qty must be at least 1"),
 });
 
+/* =======================================================
+   🧾 Payment Result Schema
+   ======================================================= */
 export const paymentResultSchema = z.object({
   id: z.string(),
   status: z.string(),
-  email_address: z.string(),
+  email_address: z.string().email("Invalid email address"),
   pricePaid: z.string(),
+});
+
+/* =======================================================
+   👤 Update Profile Schema
+   ======================================================= */
+export const updateProfileSchema = z.object({
+  name: z.string().min(3, "Name must be at least 3 characters"),
+  email: z.string().email("Invalid email address"),
 });

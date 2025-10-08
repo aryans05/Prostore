@@ -5,6 +5,7 @@ import {
   signInFormSchema,
   signUpFormSchema,
   paymentMethodSchema,
+  updateProfileSchema,
 } from "../validators";
 import { auth, signIn, signOut } from "@/auth";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
@@ -12,9 +13,10 @@ import { hashSync } from "bcryptjs";
 import prisma from "@/lib/prisma";
 import { ShippingAddress } from "@/types";
 import { formatError } from "../utils";
-import z from "zod";
 
-// -------------------- SIGN IN --------------------
+/* =======================================================
+   🔐 SIGN IN
+   ======================================================= */
 export async function signInWithCredentials(
   prevState: unknown,
   formData: FormData
@@ -40,20 +42,25 @@ export async function signInWithCredentials(
     return { success: true, message: "Signed in successfully", callbackUrl };
   } catch (error) {
     if (isRedirectError(error)) throw error;
-
-    return {
-      success: false,
-      message: formatError(error),
-    };
+    return { success: false, message: formatError(error) };
   }
 }
 
-// -------------------- SIGN OUT --------------------
+/* =======================================================
+   🚪 SIGN OUT
+   ======================================================= */
 export async function signOutUser() {
-  await signOut();
+  try {
+    await signOut();
+    return { success: true, message: "Signed out successfully" };
+  } catch (error) {
+    return { success: false, message: formatError(error) };
+  }
 }
 
-// -------------------- SIGN UP --------------------
+/* =======================================================
+   🧾 SIGN UP
+   ======================================================= */
 export async function signUpUser(prevState: unknown, formData: FormData) {
   try {
     const user = signUpFormSchema.parse({
@@ -63,10 +70,10 @@ export async function signUpUser(prevState: unknown, formData: FormData) {
       confirmPassword: formData.get("confirmPassword"),
     });
 
-    // ✅ Store hashed password
+    // ✅ Hash password
     const hashedPassword = hashSync(user.password, 10);
 
-    // ✅ Create user in DB (lowercase email for uniqueness)
+    // ✅ Create user (store lowercase email)
     await prisma.user.create({
       data: {
         name: user.name,
@@ -75,36 +82,44 @@ export async function signUpUser(prevState: unknown, formData: FormData) {
       },
     });
 
-    // ✅ Auto sign in new user
+    // ✅ Auto sign-in new user
     await signIn("credentials", {
       email: user.email,
-      password: user.password, // plain password
+      password: user.password,
       redirect: true,
       redirectTo: "/",
     });
 
     return { success: true, message: "Account created successfully" };
-  } catch (error: any) {
+  } catch (error) {
     if (isRedirectError(error)) throw error;
-
     return { success: false, message: formatError(error) };
   }
 }
 
-// -------------------- GET USER BY ID --------------------
+/* =======================================================
+   👤 GET USER BY ID
+   ======================================================= */
 export async function getUserById(userId: string) {
-  const user = await prisma.user.findFirst({
-    where: { id: userId },
-  });
-  if (!user) throw new Error("User not found");
+  try {
+    const user = await prisma.user.findFirst({
+      where: { id: userId },
+    });
 
-  return {
-    ...user,
-    address: user.address as ShippingAddress | null,
-  };
+    if (!user) throw new Error("User not found");
+
+    return {
+      ...user,
+      address: user.address as ShippingAddress | null,
+    };
+  } catch (error) {
+    throw new Error(formatError(error));
+  }
 }
 
-// -------------------- UPDATE USER ADDRESS --------------------
+/* =======================================================
+   🏠 UPDATE USER ADDRESS
+   ======================================================= */
 export async function updateUserAddress(data: ShippingAddress) {
   try {
     const session = await auth();
@@ -119,20 +134,21 @@ export async function updateUserAddress(data: ShippingAddress) {
 
     return {
       success: true,
-      message: "User address updated successfully",
+      message: "Address updated successfully",
     };
   } catch (error) {
     return { success: false, message: formatError(error) };
   }
 }
 
-// -------------------- UPDATE USER PAYMENT METHOD --------------------
+/* =======================================================
+   💳 UPDATE USER PAYMENT METHOD
+   ======================================================= */
 export async function updateUserPaymentMethod(type: string) {
   try {
     const session = await auth();
     if (!session?.user?.id) throw new Error("User not found");
 
-    // ✅ Validate payment method against schema
     paymentMethodSchema.parse({ type });
 
     await prisma.user.update({
@@ -143,6 +159,40 @@ export async function updateUserPaymentMethod(type: string) {
     return {
       success: true,
       message: "Payment method updated successfully",
+    };
+  } catch (error) {
+    return { success: false, message: formatError(error) };
+  }
+}
+
+/* =======================================================
+   ✏️ UPDATE USER PROFILE (FIXED ✅)
+   ======================================================= */
+export async function updateProfile(user: { name: string; email: string }) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) throw new Error("User not found");
+
+    // ✅ Validate the data
+    const validatedUser = updateProfileSchema.parse(user);
+
+    const currentUser = await prisma.user.findUnique({
+      where: { id: session.user.id },
+    });
+
+    if (!currentUser) throw new Error("User not found");
+
+    // ✅ Only update the name, not the email (prevents duplicate error)
+    await prisma.user.update({
+      where: { id: currentUser.id },
+      data: {
+        name: validatedUser.name,
+      },
+    });
+
+    return {
+      success: true,
+      message: "Profile updated successfully",
     };
   } catch (error) {
     return { success: false, message: formatError(error) };

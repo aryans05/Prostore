@@ -3,6 +3,7 @@ import { twMerge } from "tailwind-merge";
 import { ZodError } from "zod";
 import { Prisma } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
+import qs from "query-string";
 
 /* =======================================================
    🧩 CLASSNAMES UTIL
@@ -150,4 +151,35 @@ export function formatDateTime(dateInput: string | Date) {
     dateOnly: date.toLocaleString("en-US", dateOptions),
     timeOnly: date.toLocaleString("en-US", timeOptions),
   };
+}
+
+/* =======================================================
+   🔗 QUERY STRING & PAGINATION UTILITIES
+   ======================================================= */
+
+/**
+ * Build a URL with updated query parameters.
+ * Used for pagination and dynamic filters.
+ */
+export function formUrlQuery({
+  params,
+  key,
+  value,
+}: {
+  params: string;
+  key: string;
+  value: string | null;
+}) {
+  const query = qs.parse(params);
+
+  // ✅ Type-safe fix: use null (not undefined)
+  query[key] = value ?? null;
+
+  return qs.stringifyUrl(
+    {
+      url: window.location.pathname,
+      query,
+    },
+    { skipNull: true }
+  );
 }

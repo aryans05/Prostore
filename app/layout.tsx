@@ -3,8 +3,8 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { APP_NAME, SERVER_URL } from "@/lib/constants/index";
 import { ThemeProvider } from "next-themes";
-import { Toast } from "@/components/ui/toast";
 import { Toaster } from "@/components/ui/toaster";
+import { SessionProvider } from "next-auth/react"; // ✅ Import SessionProvider
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -27,15 +27,18 @@ export default function RootLayout({
       <body
         className={`${inter.className} antialiased bg-background text-foreground min-h-screen`}
       >
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          {children}
-          <Toaster />
-        </ThemeProvider>
+        <SessionProvider>
+          {/* ✅ Wrap everything that uses useSession() inside */}
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            {children}
+            <Toaster />
+          </ThemeProvider>
+        </SessionProvider>
       </body>
     </html>
   );

@@ -30,24 +30,24 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }
 
         try {
-          // ✅ Safely fetch user by email
+          // ✅ Fetch user safely
           const user = await prisma.user.findUnique({
             where: { email: credentials.email },
           });
 
           if (!user || !user.password) {
-            console.warn("User not found or missing password hash");
+            console.warn("User not found or missing password");
             return null;
           }
 
-          // ✅ Validate password with bcrypt
+          // ✅ Validate password
           const isValid = await compare(credentials.password, user.password);
           if (!isValid) {
-            console.warn("Invalid password attempt");
+            console.warn("Invalid password");
             return null;
           }
 
-          // ✅ Return minimal user object for session/token
+          // ✅ Return minimal user info for session
           return {
             id: user.id,
             name: user.name,
@@ -70,31 +70,41 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   callbacks: {
     /**
      * ✅ JWT Callback:
-     * Adds user.id and user.role to the JWT payload
+     * Adds user.id and user.role to the JWT token
+     * Also handles name updates for session.refresh()
      */
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
+      // 🪙 Add basic user info when first signing in
       if (user) {
-        token.id = (user as any).id;
-        token.role = (user as any).role;
+        token.id = user.id;
+        token.role = user.role;
+        token.name = user.name;
       }
+
+      // 🔄 Handle session updates (e.g., name change)
+      if (trigger === "update" && session?.user?.name) {
+        token.name = session.user.name;
+      }
+
       return token;
     },
 
     /**
      * ✅ Session Callback:
-     * Makes token fields accessible in session.user
+     * Makes token fields available in session.user
      */
     async session({ session, token }) {
       if (session.user) {
-        (session.user as any).id = token.id;
-        (session.user as any).role = token.role;
+        session.user.id = token.id as string;
+        session.user.role = token.role as string;
+        session.user.name = token.name as string;
       }
       return session;
     },
   },
 
   pages: {
-    signIn: "/login", // Optional: redirect to your login page
+    signIn: "/login", // redirect to your login page
   },
 
   secret: process.env.NEXTAUTH_SECRET,

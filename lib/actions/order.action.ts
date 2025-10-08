@@ -9,6 +9,7 @@ import { formatError, convertToPlainObject } from "@/lib/utils";
 import type { Order, PaymentResult } from "@/types";
 import { paypal } from "../paypal";
 import { revalidatePath } from "next/cache";
+import { PAGE_SIZE } from "../constants";
 
 /* =======================================================
    ✅ CREATE ORDER FROM CART
@@ -230,4 +231,55 @@ async function updateOrderToPaid({
   });
 
   console.log(`✅ Order ${orderId} successfully marked as paid`);
+}
+
+/* =======================================================
+   ✅ GET USER ORDERS (with Pagination)
+   ======================================================= */
+export async function getMyOrders({
+  limit = PAGE_SIZE,
+  page,
+}: {
+  limit?: number;
+  page: number;
+}) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) throw new Error("User not authenticated");
+
+    // 🧭 Fetch user orders with pagination
+    const orders = await prisma.order.findMany({
+      where: { userId: session.user.id },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+      skip: (page - 1) * limit,
+      include: {
+        items: true,
+        user: { select: { name: true, email: true } },
+      },
+    });
+
+    // 🧮 Count total number of user's orders
+    const totalCount = await prisma.order.count({
+      where: { userId: session.user.id },
+    });
+
+    // 🔄 Convert Prisma objects to plain JS objects
+    const plainOrders = convertToPlainObject(orders) as unknown as Order[];
+
+    return {
+      success: true,
+      message: "Orders fetched successfully",
+      data: plainOrders,
+      totalPages: Math.ceil(totalCount / limit),
+    };
+  } catch (error) {
+    console.error("❌ Error fetching user orders:", error);
+    return {
+      success: false,
+      message: formatError(error),
+      data: [],
+      totalPages: 0,
+    };
+  }
 }
